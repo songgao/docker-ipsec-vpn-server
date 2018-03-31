@@ -1,0 +1,7 @@
+{
+  "psk": "1234",
+  "users": {
+    "user0": "pass0",
+    "user1": "pass1"
+  }
+}

@@ -19,6 +19,8 @@
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
+CFG_FILE="/config.json"
+
 exiterr()  { echo "Error: $1" >&2; exit 1; }
 nospaces() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 noquotes() { printf '%s' "$1" | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"; }
@@ -44,48 +46,25 @@ EOF
 fi
 ip link delete dummy0 >/dev/null 2>&1
 
-mkdir -p /opt/src
-vpn_env="/opt/src/vpn-gen.env"
-if [ -z "$VPN_IPSEC_PSK" ] && [ -z "$VPN_USER" ] && [ -z "$VPN_PASSWORD" ]; then
-  if [ -f "$vpn_env" ]; then
-    echo
-    echo "Retrieving previously generated VPN credentials..."
-    . "$vpn_env"
-  else
-    echo
-    echo "VPN credentials not set by user. Generating random PSK and password..."
-    VPN_IPSEC_PSK="$(LC_CTYPE=C tr -dc 'A-HJ-NPR-Za-km-z2-9' < /dev/urandom | head -c 16)"
-    VPN_USER=vpnuser
-    VPN_PASSWORD="$(LC_CTYPE=C tr -dc 'A-HJ-NPR-Za-km-z2-9' < /dev/urandom | head -c 16)"
+if [ -f "$CFG_FILE" ]; then
+  echo
+  echo "Using $CFG_FILE ..."
+else
+  echo
+  echo "Config file is not provided. Generating random credentials ..."
 
-    echo "VPN_IPSEC_PSK=$VPN_IPSEC_PSK" > "$vpn_env"
-    echo "VPN_USER=$VPN_USER" >> "$vpn_env"
-    echo "VPN_PASSWORD=$VPN_PASSWORD" >> "$vpn_env"
-    chmod 600 "$vpn_env"
-  fi
+  VPN_IPSEC_PSK="$(LC_CTYPE=C tr -dc 'A-HJ-NPR-Za-km-z2-9' < /dev/urandom | head -c 16)"
+  VPN_USER=vpnuser
+  VPN_PASSWORD="$(LC_CTYPE=C tr -dc 'A-HJ-NPR-Za-km-z2-9' < /dev/urandom | head -c 16)"
+
+  echo "VPN_IPSEC_PSK=$VPN_IPSEC_PSK"
+  echo "VPN_USER=$VPN_USER"
+  echo "VPN_PASSWORD=$VPN_PASSWORD"
+
+  cat > "$CFG_FILE" <<EOF
+{"psk":"$VPN_IPSEC_PSK","users":{"$VPN_USER":"$VPN_PASSWORD"}}
+EOF
 fi
-
-# Remove whitespace and quotes around VPN variables, if any
-VPN_IPSEC_PSK="$(nospaces "$VPN_IPSEC_PSK")"
-VPN_IPSEC_PSK="$(noquotes "$VPN_IPSEC_PSK")"
-VPN_USER="$(nospaces "$VPN_USER")"
-VPN_USER="$(noquotes "$VPN_USER")"
-VPN_PASSWORD="$(nospaces "$VPN_PASSWORD")"
-VPN_PASSWORD="$(noquotes "$VPN_PASSWORD")"
-
-if [ -z "$VPN_IPSEC_PSK" ] || [ -z "$VPN_USER" ] || [ -z "$VPN_PASSWORD" ]; then
-  exiterr "All VPN credentials must be specified. Edit your 'env' file and re-enter them."
-fi
-
-if printf '%s' "$VPN_IPSEC_PSK $VPN_USER $VPN_PASSWORD" | LC_ALL=C grep -q '[^ -~]\+'; then
-  exiterr "VPN credentials must not contain non-ASCII characters."
-fi
-
-case "$VPN_IPSEC_PSK $VPN_USER $VPN_PASSWORD" in
-  *[\\\"\']*)
-    exiterr "VPN credentials must not contain these special characters: \\ \" '"
-    ;;
-esac
 
 echo
 echo 'Trying to auto discover IP of this server...'
@@ -160,11 +139,6 @@ conn xauth-psk
   also=shared
 EOF
 
-# Specify IPsec PSK
-cat > /etc/ipsec.secrets <<EOF
-%any  %any  : PSK "$VPN_IPSEC_PSK"
-EOF
-
 # Create xl2tpd config
 cat > /etc/xl2tpd/xl2tpd.conf <<EOF
 [global]
@@ -198,15 +172,15 @@ lcp-echo-interval 30
 connect-delay 5000
 EOF
 
-# Create VPN credentials
-cat > /etc/ppp/chap-secrets <<EOF
-"$VPN_USER" l2tpd "$VPN_PASSWORD" *
-EOF
+# Specify IPsec PSK.
+jq -r '"%any %any : PSK \"\(.psk)\""' "$CFG_FILE"> /etc/ipsec.secrets
 
-VPN_PASSWORD_ENC=$(openssl passwd -1 "$VPN_PASSWORD")
-cat > /etc/ipsec.d/passwd <<EOF
-$VPN_USER:$VPN_PASSWORD_ENC:xauth-psk
-EOF
+# Populate VPN credentials.
+jq -r '.users | to_entries[] | "\"\(.key)\" l2tpd \"\(.value)\" *" ' "$CFG_FILE" \
+  > /etc/ppp/chap-secrets
+jq -r '.users | to_entries[] | "\"\(.key)\" \"\(.value)\"" ' "$CFG_FILE" \
+  | awk '{cmd="echo "$1":$(openssl passwd "$2"):xauth-psk"; system(cmd)}' \
+  > /etc/ipsec.d/passwd
 
 # Update sysctl settings
 SYST='/sbin/sysctl -e -q -w'
@@ -262,17 +236,7 @@ cat <<EOF
 
 IPsec VPN server is now ready for use!
 
-Connect to your new VPN with these details:
-
 Server IP: $PUBLIC_IP
-IPsec PSK: $VPN_IPSEC_PSK
-Username: $VPN_USER
-Password: $VPN_PASSWORD
-
-Write these down. You'll need them to connect!
-
-Important notes:   https://git.io/vpnnotes2
-Setup VPN clients: https://git.io/vpnclients
 
 ================================================
 
