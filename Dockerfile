@@ -1,7 +1,7 @@
 FROM debian:stretch
-LABEL maintainer="Lin Song <linsongui@gmail.com>"
+LABEL authors="Lin Song <linsongui@gmail.com>, Song Gao <song@gao.io>"
 
-ENV REFRESHED_AT 2018-01-29
+ENV REFRESHED_AT 2018-04-07
 ENV SWAN_VER 3.23
 
 WORKDIR /opt/src
