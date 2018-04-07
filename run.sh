@@ -111,6 +111,7 @@ conn shared
   dpdtimeout=120
   dpdaction=clear
   sha2-truncbug=yes
+  ike=aes256-sha2;dh14
 
 conn l2tp-psk
   auto=add
