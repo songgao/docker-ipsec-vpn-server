@@ -173,6 +173,9 @@ lcp-echo-interval 30
 connect-delay 5000
 EOF
 
+# enable debug logging in ppp
+sed -i.original 's/^\#debug$/debug/' /etc/ppp/options
+
 # Specify IPsec PSK.
 jq -r '"%any %any : PSK \"\(.psk)\""' "$CFG_FILE"> /etc/ipsec.secrets
 
@@ -245,6 +248,9 @@ EOF
 
 # Load IPsec NETKEY kernel module
 modprobe af_key
+
+# start syslog service
+service rsyslog restart
 
 # Start services
 mkdir -p /var/run/pluto /var/run/xl2tpd
