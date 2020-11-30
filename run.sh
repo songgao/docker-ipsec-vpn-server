@@ -165,7 +165,6 @@ conn shared
   sha2-truncbug=yes
   ike=aes256-sha2;dh14
   nat-keepalive=yes
-  keep-alive=18
 
 conn l2tp-psk
   auto=add
