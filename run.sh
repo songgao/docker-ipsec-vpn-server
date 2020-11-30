@@ -53,6 +53,14 @@ if [ -f "$CFG_FILE" ]; then
 else
   echo
   echo "Config file is not provided. Generating random credentials ..."
+
+  echo "VPN_IPSEC_PSK=$VPN_IPSEC_PSK"
+  echo "VPN_USER=$VPN_USER"
+  echo "VPN_PASSWORD=$VPN_PASSWORD"
+
+  cat > "$CFG_FILE" <<EOF
+{"psk":"$VPN_IPSEC_PSK","users":{"$VPN_USER":"$VPN_PASSWORD"}}
+EOF
 fi
 
 if [ -n "$VPN_DNS_SRV1" ]; then
@@ -68,15 +76,6 @@ fi
 if [ -n "$VPN_PUBLIC_IP" ]; then
   VPN_PUBLIC_IP=$(nospaces "$VPN_PUBLIC_IP")
   VPN_PUBLIC_IP=$(noquotes "$VPN_PUBLIC_IP")
-fi
-
-  echo "VPN_IPSEC_PSK=$VPN_IPSEC_PSK"
-  echo "VPN_USER=$VPN_USER"
-  echo "VPN_PASSWORD=$VPN_PASSWORD"
-
-  cat > "$CFG_FILE" <<EOF
-{"psk":"$VPN_IPSEC_PSK","users":{"$VPN_USER":"$VPN_PASSWORD"}}
-EOF
 fi
 
 # Check DNS servers and try to resolve hostnames to IPs
