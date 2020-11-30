@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 
 services:
   vpn:
@@ -11,5 +11,4 @@ services:
     hostname: ipsec-vpn-server
     container_name: ipsec-vpn-server
     volumes:
-      - /lib/modules:/lib/modules:ro
       - ./config.json:/config.json:ro
