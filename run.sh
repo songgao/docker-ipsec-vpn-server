@@ -162,6 +162,7 @@ conn shared
   dpddelay=30
   dpdtimeout=120
   dpdaction=clear
+  ikev2=never
   sha2-truncbug=yes
   ike=aes256-sha2;dh14
   nat-keepalive=yes
